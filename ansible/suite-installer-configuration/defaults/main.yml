@@ -1,0 +1,6 @@
+---
+# defaults file for platform-install
+installer_tag: latest 
+jdbc_url: http://shc-nexus-repo.hpeswlab.net:8080/repository/itsma-releases/com/hpe/shared/services/ojdbc/8/ojdbc-8.jar
+jdbc_md5: 057478599050cf8999ced6069d3ccbf4
+

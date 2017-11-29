@@ -1,0 +1,37 @@
+    - name: delete kubectl completion bash in /etc/profile
+      lineinfile:
+       dest: /etc/profile
+       state: absent
+       regexp: "kubectl completion bash" 
+    - name: uninstall coreplatform
+      shell: >
+        echo Y |/opt/kubernetes/uninstall.sh
+      ignore_errors: True
+    - name: delete nfs expose folder in nfs
+      lineinfile:
+        dest: /etc/exports
+        state: absent
+        regexp: "/var/vols/itom"
+      when: is_master == "true"
+    - name: delete nfs expose folder
+      file: state=absent dest=/var/vols/itom
+      when: is_master == "true"
+    - name: delete user itsma
+      user:
+        name: itsma
+        state: absent
+        remove: yes
+      when: is_master == "true"
+    - name: delete group itsma
+      group:
+        name: itsma
+        state: absent
+      when: is_master == "true"
+
+    - name: delete suite zip
+      file: state=absent dest=/home/admin/{{item}}
+      with_items:
+        - "{{itom_base_infra}}"
+        - "{{itom_base_infra_zip_name}}"
+        - meta-data.tar.gz 
+        - transforParamsDTOStr.json 

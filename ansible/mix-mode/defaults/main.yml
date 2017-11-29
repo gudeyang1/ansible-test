@@ -1,0 +1,9 @@
+test_sm_info_body:
+  sm_rte_url: "http://shc-itsma-suite-cd-142.hpeswlab.net:13080"
+  sm_integration_username: "smIntgAdmin"
+  sm_integration_password: "Admin_1234"
+apply_sm_info_body:
+  sm_rte_url: "http://shc-itsma-suite-cd-142.hpeswlab.net:13080"
+  sm_integration_username: "smIntgAdmin"
+  sm_integration_password: "Admin_1234"
+  action: "apply"

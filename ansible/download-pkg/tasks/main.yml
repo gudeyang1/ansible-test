@@ -1,0 +1,17 @@
+---
+# tasks file for download-pkg
+- file: state=directory dest={{global_nfs_expose}}/oci/ owner=1999 group=1999
+- name: download oracle client
+  get_url:
+    url: "{{item}}"
+    dest: "{{global_nfs_expose}}/oci/"
+    timeout: 30
+    owner: 1999
+    group: 1999
+  with_items:
+    - "{{instantclient_basic_linux_url}}"
+    - "{{instantclient_sqlplus_linux_url}}"
+
+- name: cluster info
+  debug: msg="master fqdn is http://{{ ansible_fqdn|lower }}"
+

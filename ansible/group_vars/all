@@ -1,0 +1,150 @@
+---
+#
+itom_base_infra: HPESW_ITOM_Suite_Foundation
+itom_base_infra_installer: "{{cdfDownloadUrl}}"
+itom_base_infra_zip_name: cdf.zip 
+
+# suite version
+suite_version: "2017.07"
+suite_version2: "2017.11"
+suite_version3: "2018.02"
+
+# The configuration parameters from infra-installer UI
+global_nfs_expose: /var/vols/itom/itsma/itsma-{{ suite_namespace }}-global
+db_nfs_expose: /var/vols/itom/itsma/itsma-{{ suite_namespace }}-db
+smartanalytics_nfs_expose: /var/vols/itom/itsma/itsma-{{ suite_namespace }}-smartanalytics
+suite_namespace: itsma
+
+
+# POST request to get token from the infra REST
+token_headers:
+  Content-Type: "application/json"
+  Accept: "application/json"
+
+token_body:
+#    password: "{{mng_portal_passwd}}"
+    password: "1Qaz2wsx"
+    username: "admin"
+
+# GET request to get csrf token and cookie from the infra REST
+csrf_headers:
+  X-AUTH-TOKEN: "{{ token.json.token }}"
+  Accept: "application/json"
+
+# get deployment uuid headers
+get_uuid_headers:
+  X-AUTH-TOKEN: "{{ token.json.token }}"
+  Accept: "application/json"
+# POST request to get deployment UUID from the infra REST
+uuid_headers:
+  Content-Type: "application/json"
+  Accept: "application/json"
+  Cookie: "{{ csrf.set_cookie }}"
+  X-AUTH-TOKEN: "{{ token.json.token }}"
+  X-CSRF-TOKEN: "{{ csrf.json.csrfToken }}"
+
+#POST request to create global-volume
+
+
+volume_headers:
+  Content-Type: "application/json"
+  Accept: "application/json"
+  Cookie: "{{ csrf.set_cookie }}"
+  X-AUTH-TOKEN: "{{ token.json.token }}"
+  X-CSRF-TOKEN: "{{ csrf.json.csrfToken }}"
+
+global_volume_body:
+  accessModes: "ReadWriteMany"
+  nfsIp: "{{nfs_ip}}"
+  nfsOutputPath: "{{global_nfs_expose}}"
+  persistentVolumeReclaimPolicy: "Delete"
+  pvName: "global-volume"
+  pvPvcStorage: "80Gi"
+
+
+db_volume_body:
+  accessModes: "ReadWriteMany"
+  nfsIp: "{{nfs_ip}}"
+  nfsOutputPath: "{{db_nfs_expose}}"
+  persistentVolumeReclaimPolicy: "Delete"
+  pvName: "db-volume"
+  pvPvcStorage: "80Gi"
+
+smartanalytics_volume_body:
+  accessModes: "ReadWriteMany"
+  nfsIp: "{{nfs_ip}}"
+  nfsOutputPath: "{{smartanalytics_nfs_expose}}"
+  persistentVolumeReclaimPolicy: "Delete"
+  pvName: "smartanalytics-volume"
+  pvPvcStorage: "80Gi"
+
+# POST request to set feature set from the infra REST
+feature_set_headers:
+  Content-Type: "application/json"
+  Accept: "application/json"
+  Cookie: "{{ csrf.set_cookie }}"
+  X-AUTH-TOKEN: "{{ token.json.token }}"
+  X-CSRF-TOKEN: "{{ csrf.json.csrfToken }}"
+
+feature_set_body:
+  allow_custom_selection: true
+  description: string
+  editions:
+  - description: string
+    display: true
+    has_feature_sets:
+    - string
+    id: string
+    id_defined_in_autopass: string
+    name: string
+    selected: true
+  feature_sets:
+  - description: string
+    display: string
+    has_features:
+    - string
+    id: string
+    name: string
+    selected: true
+  features:
+  - also_select:
+    - string
+    description: string
+    display: true
+    id: string
+    name: string
+    selected: true
+  i18n:
+  - string
+  images:
+  - image: string
+  initial_edition_selected: string
+  suite: itsma
+  version: string
+
+# GET request to get label from the infra REST
+label_headers:
+  X-AUTH-TOKEN: "{{ token.json.token }}"
+  Accept: "application/json"
+
+# POST request to set suite configuration from the infra REST
+suite_installer_headers:
+  Content-Type: "application/json"
+  Accept: "application/json"
+  X-CSRF-TOKEN: "{{ csrf.json.csrfToken }}"
+  Cookie: "{{ format_cookie }}"
+  X-AUTH-TOKEN: "{{token.json.token}}"
+
+# POST request to trigger ITSMA installer
+install_post_body:
+  domain_name: "{{ ansible_fqdn|lower }}"
+  itom_suite_size: "{{itom_suite_size}}"
+  sysadmin_password: "{{sma_admin_password}}"
+  boadmin_password: "{{sma_admin_password}}"
+  database: []
+  activated_services: "{{activated_services}}"
+  default_registry_url: "{{ default_registry_url }}"
+  itom_suite_mode: "{{ mode }}"
+  itom_suite_install_type: "{{install_type}}"  #install_from_backup  new_install
+  itom_suite_backup_package_dir: "{{backup_package_dir}}"
+  itom_suite_backup_package_name: "{{backup_package_name}}"

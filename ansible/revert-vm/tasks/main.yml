@@ -1,0 +1,35 @@
+    - name: generate vm info list from template
+      template: src=vm-map.jinj2 dest=./revert-vm/files/vmmap.yml
+    - name: include vars
+      include_vars: file=./revert-vm/files/vmmap.yml
+    - name: include vsphere user and password vars 
+      include_vars: file=./revert-vm/vars/vsphere.yml
+      when: revert_vm == "true"
+    - debug: var=vms
+    - debug: msg="VM group is {{ vms }}"
+    - name: Revert development VMs
+      with_items: "{{ vms }}"
+      vmware_guest_snapshot:
+        hostname: "{{ hostname }}" 
+        username: "{{ vsphere_user }}"
+        password: "{{ vsphere_pwd }}"
+        datacenter: "{{ datacenter }}"
+        uuid: "{{ item.uuid }}"
+        name: "{{ item.name }}"
+        validate_certs: False
+        state: revert
+        snapshot_name: "{{ snapshot_name }}"
+    - name: Power on development VMs
+      with_items: "{{ vms }}"  
+      vmware_guest:
+        hostname: "{{ hostname }}" 
+        username: "{{ vsphere_user }}"
+        password: "{{ vsphere_pwd }}"
+        datacenter: "{{ datacenter }}"
+        uuid: "{{ item.uuid }}"
+        name: "{{ item.name }}"
+        validate_certs: False
+        state: poweredon
+    - name: wait for host ready
+      wait_for: host="{{ item.ip }}" port="22"
+      with_items: "{{vms}}"

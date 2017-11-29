@@ -1,0 +1,41 @@
+- hosts: localhost
+  become: true
+  become_user: root
+  become_method: sudo
+  gather_facts: False
+  tasks:
+    - name: delete old docker config.json
+      file: dest=/root/.docker/ state=absent
+    - name: delete expired secret
+      shell: kubectl  delete secret registrypullsecret -n itsma1
+    - name: delete old secret.yml
+      file: dest="{{suite_config_template_path}}/output/yaml_templates/suite_secret.yaml" state=absent
+    - name: debug
+      shell: >
+        aws ecr get-login --region {{region}}
+      register: aws_login
+    - set_fact: docker_login_cmd={{aws_login.stdout}}
+    - name: generate ECR info
+      shell: >
+        {{docker_login_cmd}}
+    - name: generate login secret
+      shell: >
+        base64 -w 0 ~/.docker/config.json
+      register: secret
+    - set_fact: dockerconfigjson={{secret.stdout}}
+    - name: generate secert yaml
+      copy:
+        dest: "{{suite_config_template_path}}/output/yaml_templates/suite_secret.yaml"
+        content: |
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: registrypullsecret
+            #namespace: ${namespace}
+            namespace: itsma1
+          data:
+            .dockerconfigjson: {{dockerconfigjson}}
+          type: kubernetes.io/dockerconfigjson
+          ---
+    - name: recreate kubernetes secret
+      shell: kubectl  create -f {{suite_config_template_path}}/output/yaml_templates/suite_secret.yaml

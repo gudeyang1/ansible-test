@@ -1,0 +1,217 @@
+- hosts: localhost
+  vars_files:
+    - host_vars/local.yml
+  tasks:
+    - name: add work nodes host to memory
+      add_host: name={{ item.ip }} groups=nodes is_master=false ansible_ssh_pass={{ ansible_ssh_pass }}
+      with_items: "{{ itsma_work_nodes }}"
+    - name: add master node to memory
+      add_host: name={{ item.master_ip }} groups=master is_master=true ansible_ssh_pass={{ ansible_ssh_pass }}
+      with_items: "{{ itsma_master_nodes }}"
+
+- hosts: all 
+  vars_files:
+    - group_vars/virtual_demo.yml
+    - host_vars/local.yml
+  vars:
+    master: "{{hostvars[groups['master'][0]].ansible_default_ipv4.address}}" 
+    worker_nodes: "{% set IP_ARR=[] %}{% for host in groups['nodes'][::] %} {% if IP_ARR.insert(loop.index,hostvars[host].ansible_default_ipv4.address) %}{% endif %} {% endfor %}{{IP_ARR|join(' ')}}" 
+  tasks:
+    - name: Download and install the infra service installer
+      get_url:
+        url: "{{ itom_base_infra_installer }}"
+        dest: /home/admin/
+        timeout: 60
+    - unarchive: src=/home/admin/suite-platform-2017.03.00200.zip dest=/home/admin/ copy=no mode=0777
+    - debug: msg="ansible_host {{ ansible_host }}"
+    - debug: msg="worker_nodes {{ worker_nodes }}"
+    - debug: msg="master nodes {{ master }}"
+    - replace: dest=/home/admin/{{ itom_base_infra }}/install.properties regexp='^MASTER_NODES=.*$' replace='MASTER_NODES="{{ master }}" '
+    - replace: dest=/home/admin/{{ itom_base_infra }}/install.properties regexp='^WORKER_NODES=.*$' replace='WORKER_NODES="{{ worker_nodes }}" '
+    - replace: dest=/home/admin/{{ itom_base_infra }}/install.properties regexp='^INGRESS_HOST=.*$' replace='INGRESS_HOST={{ master }}'
+    - replace: dest=/home/admin/{{ itom_base_infra }}/install.properties regexp='^NFS_SERVER=.*$' replace='NFS_SERVER={{ master }}'
+    - replace: dest=/home/admin/{{ itom_base_infra }}/install.properties regexp='^EXTERNAL_ACCESS_HOST=.*$' replace='EXTERNAL_ACCESS_HOST="{{hostvars[groups['master'][0]].ansible_fqdn|lower}}"'
+    - replace: dest=/home/admin/{{ itom_base_infra }}/install.properties regexp='^DOCKER_HTTP_PROXY=.*$' replace='#DOCKER_HTTP_PROXY'
+    - replace: dest=/home/admin/{{ itom_base_infra }}/install.properties regexp='^DOCKER_HTTPS_PROXY=.*$' replace='#DOCKER_HTTPS_PROXY'
+    - replace: dest=/home/admin/{{ itom_base_infra }}/install.properties regexp='^CLIENT_CA_FILE=.*$' replace='CLIENT_CA_FILE=/home/admin/ssl/ca.crt'
+      when: "{{ is_master}} == false"
+    - replace: dest=/home/admin/{{ itom_base_infra }}/install.properties regexp='^CLIENT_CERT_FILE=.*$' replace='CLIENT_CERT_FILE=/home/admin/ssl/client.crt'
+      when: "{{ is_master}} == false"
+    - replace: dest=/home/admin/{{ itom_base_infra }}/install.properties regexp='^CLIENT_KEY_FILE=.*$' replace='CLIENT_KEY_FILE=/home/admin/ssl/client.key'
+      when: "{{ is_master}} == false"
+    - shell: >
+         ntpdate 16.110.135.123
+    - shell: >
+        /home/admin/{{ itom_base_infra }}/scripts/setupNFS.sh &&
+        /home/admin/{{ itom_base_infra }}/install &&
+        groupadd -g 1999 itsma &&
+        useradd -g 1999 -u 1999 itsma &&
+        mkdir -p /var/vols/itom/itsma &&
+        mkdir -p /var/vols/itom/itsma/itsma-{{ suite_namespace }} &&
+        chmod -R 777 /var/vols/itom/itsma &&
+        echo "/var/vols/itom/itsma/itsma-{{ suite_namespace }} *(rw,sync,anonuid=1999,anongid=1999,all_squash)" |  tee -a /etc/exports &&  exportfs -ra &&
+        chmod -R 777 /opt/kubernetes/ssl &&
+        echo "source <(kubectl completion bash)" >> /etc/profile
+      ignore_errors: True
+      when: "{{ is_master }} == true"
+    - fetch: src=/opt/kubernetes/ssl/ca.crt dest=/home/vagrant/ssl/ca.crt flat=yes
+      when: "{{ is_master }} == true"
+    - fetch: src=/opt/kubernetes/ssl/client.crt dest=/home/vagrant/ssl/client.crt flat=yes
+      when: "{{ is_master }} == true"
+    - fetch: src=/opt/kubernetes/ssl/client.key dest=/home/vagrant/ssl/client.key flat=yes
+      when: "{{ is_master }} == true"
+    - copy: src=/home/vagrant/ssl dest=/home/admin
+      when: "{{ is_master }} == false"
+    - shell: /home/admin/{{ itom_base_infra }}/install
+      when: "{{ is_master }} == false"
+
+- hosts: master
+  vars_files:
+    - group_vars/virtual_demo.yml
+    - host_vars/local.yml
+  tasks:
+    - wait_for: timeout=30
+    - shell: >
+        /home/admin/{{ itom_base_infra }}/scripts/downloadimages.sh -l -s itsma -r shc-harbor-dev.hpeswlab.net/ -o itsma/ -u dev -p 1Qaz2wsx &&
+        /home/admin/{{ itom_base_infra }}/scripts/uploadimages.sh -d /var/opt/kubernetes/offline/ -s itsma
+    - shell: chmod -R 777 /var/vols/itom/core/suite-install/itsma && cp /var/vols/itom/core/suite-install/itsma/suite_config_template.yaml /home/admin/
+    - replace: dest=/var/vols/itom/core/suite-install/itsma/suite_config_template.yaml regexp='\$NFS_OUTPUT_PATH' replace='{{ nfs_expose }}'
+    #- replace: dest=/var/vols/itom/core/suite-install/itsma/suite_config_template.yaml regexp='\$SUITE_NAMESPACE' replace='{{ suite_namespace }}'
+    #- replace: dest=/var/vols/itom/core/suite-install/itsma/suite_config_template.yaml regexp='\$SUITE_LABEL_KEY' replace='{{ suite_label_key }}'
+    #- replace: dest=/var/vols/itom/core/suite-install/itsma/suite_config_template.yaml regexp='\$SUITE_LABEL_VALUE' replace='{{ suite_label_value }}'
+    - replace: dest=/var/vols/itom/core/suite-install/itsma/suite_config_template.yaml regexp='\$DOCKER_REGISTRY' replace='{{ installer_registry }}'
+    - replace: dest=/var/vols/itom/core/suite-install/itsma/suite_config_template.yaml regexp='\$IMAGE_NAME' replace='{{ installer_registry }}/itsma/itom-itsma-installer{{':'}}{{ installer_tag }}'
+    - replace: dest=/var/vols/itom/core/suite-install/itsma/suite_config_template.yaml regexp='#type:\sNodePort' replace="type{{':'}} NodePort"
+    - replace: dest=/var/vols/itom/core/suite-install/itsma/suite_config_template.yaml regexp='targetPort:\s8080' replace="name{{':'}} \"port-8080\""
+    #- lineinfile:
+    #    dest: /var/vols/itom/core/suite-install/itsma/suite_config_template.yaml
+    #    state: present
+    #    insertafter: '"env":\s\['
+    #    line: '            {"name": "CERT_COMMON_NAME", "value": "{{ fqdn }}"},'
+    - lineinfile:
+        dest: /var/vols/itom/core/suite-install/itsma/suite_config_template.yaml
+        state: present
+        insertbefore: '\s\scontainers:'
+        line: '  nodeSelector:'
+    - lineinfile:
+        dest: /var/vols/itom/core/suite-install/itsma/suite_config_template.yaml
+        state: present
+        insertbefore: '\s\scontainers:'
+        line: '    master: "true"'
+    - name: Hack the installer for REST call
+      blockinfile:
+        dest: /var/vols/itom/core/suite-install/itsma/suite_config_template.yaml
+        insertbefore: '^\s*selector:.*$'
+        content: |
+          # ITSMA installer REST POST
+            - port: 8081
+              targetPort: 8081
+              nodePort: 31008
+              name: "port-8081"
+
+- hosts: master
+  vars_files:
+    - group_vars/virtual_demo.yml
+    - host_vars/local.yml
+  tasks:
+    - name: Hack the credentials for private registry
+      blockinfile:
+        dest: /var/vols/itom/core/suite-install/itsma/suite_config_template.yaml
+        insertbefore: BOF
+        marker: "# {mark} REGISTRY SECRET"
+        content: |
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: registrypullsecret
+            namespace: core
+          data:
+            .dockerconfigjson: ewoJImF1dGhzIjogewoJCSJkb2NrZXIuaG9zLmhwZWNvcnAubmV0IjogewoJCQkiYXV0aCI6ICJaR1Y1WVc1bkxtZDFRR2h3WlM1amIyMDZXWFYzWldrNU1EazJjV2wxTGc9PSIsCgkJCSJlbWFpbCI6ICJkZXlhbmcuZ3VAaHBlLmNvbSIKCQl9LAoJCSJzaGMtbmV4dXMtcmVwby5ocGVzd2xhYi5uZXQ6OTAwMCI6IHsKCQkJImF1dGgiOiAiWkdWMk9tUmxkZz09IiwKCQkJImVtYWlsIjogImRleWFuZy5ndUBocGUuY29tIgoJCX0KCX0KfQ==
+
+          type: kubernetes.io/dockerconfigjson
+          
+          ---
+
+- hosts: master
+  vars_files:
+    - host_vars/local.yml
+    - group_vars/virtual_demo.yml
+  tasks:
+    - uri:
+        url: https://{{ ansible_fqdn|lower }}:5443/suiteInstaller/urest/v1.1/tokens
+        method: POST
+        headers: "{{ token_headers }}"
+        return_content: yes
+        status_code: 201
+        body: "{{ token_body }}"
+        body_format: json
+        timeout: 180
+        validate_certs: no
+      register: token
+    - debug: msg="infra-token {{ token }}"
+    - uri:
+        url: https://{{ ansible_fqdn|lower }}:5443/suiteInstaller/urest/v1.1/csrf-token
+        method: GET
+        headers: "{{csrf_headers}}"
+        return_content: yes
+        status_code: 201
+        body_format: json
+        timeout: 180
+        validate_certs: no
+      register: csrf
+    - debug: msg="infra-csrf {{ csrf }}"
+    - uri:
+        url: https://{{ ansible_fqdn|lower }}:5443/suiteInstaller/urest/v1.1/deployment
+        method: POST
+        headers: "{{uuid_headers}}"
+        return_content: yes
+        status_code: 201
+        body_format: json
+        timeout: 180
+        validate_certs: no
+      register: uuid
+    - debug: msg="infra-deployment-uuid {{ uuid }}"
+    - uri:
+        url: https://{{ ansible_fqdn|lower }}:5443/suiteInstaller/urest/v1.1/deployment/{{ uuid.json.uuid }}/feature
+        method: POST
+        headers: "{{feature_set_headers}}"
+        return_content: yes
+        status_code: 201
+        body: "{{ feature_set_body }}"
+        body_format: json
+        timeout: 180
+        validate_certs: no
+      register: feature_set
+    - debug: msg="infra-feature_set {{ feature_set }}"
+    - uri:
+        url: https://{{ ansible_fqdn|lower }}:5443/suiteInstaller/urest/v1.1/labels
+        method: GET
+        headers: "{{ label_headers }}"
+        return_content: yes
+        status_code: 200
+        body_format: json
+        timeout: 180
+        validate_certs: no
+      register: label
+    - debug: msg="infra-label {{ label }}"
+    - uri:
+        url: https://{{ ansible_fqdn|lower }}:5443/suiteInstaller/urest/v1.1/deployment/{{ uuid.json.uuid }}/suite-configuration
+        method: POST
+        headers: "{{suite_installer_headers}}"
+        return_content: yes
+        status_code: 200
+        body: "{{ suite_installer_body }}"
+        body_format: json
+        timeout: 180
+        validate_certs: no
+      register: suite_installer
+    - debug: msg="infra-suite_installer {{ suite_installer }}"
+    - wait_for: timeout=180
+    - uri:
+        url: http://{{ ansible_fqdn|lower }}:31008/itsma/install
+        method: POST
+        status_code: 201
+        body: "{{ install_post_body }}"
+        body_format: json
+        timeout: 5000
+        validate_certs: no

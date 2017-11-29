@@ -1,0 +1,4 @@
+vms:
+{% for host in groups['allnodes'] %}
+  - { name: '{{ hostvars[host]['ansible_hostname'] }}', ip: '{{host}}', uuid: '{{hostvars[host]['uuid']}}' }
+{% endfor %}

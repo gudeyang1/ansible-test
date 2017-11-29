@@ -1,0 +1,1 @@
+{"virtualbox":{"/vagrant":{"owner":"ubuntu","mount_options":["dmode=755,fmode=664","uid=1000","gid=1000"],"guestpath":"/vagrant","hostpath":"/root/suite-kit/ansible","disabled":false,"__vagrantfile":true}}}

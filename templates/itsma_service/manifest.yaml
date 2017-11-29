@@ -1,0 +1,6 @@
+name: itom-{{.Name}}
+version: {{.Version}}
+owner: {{.Name}}
+deployDeps:
+deployEntities:
+apiSpec: {{.Name}}-swagger.yaml

@@ -1,0 +1,103 @@
+---
+#get suite version 
+- uri:
+    url: https://{{ ansible_fqdn|lower }}:5443/suiteInstaller/urest/v1.1/tokens
+    method: POST
+    headers: "{{ token_headers }}"
+    return_content: yes
+    status_code: 201
+    body: "{{ token_body }}"
+    body_format: json
+    timeout: 180
+    validate_certs: no
+  register: token
+- debug: msg="infra-token {{ token }}"
+- uri:
+    url: https://{{ ansible_fqdn|lower }}:5443/suiteInstaller/urest/v1.1/deployment?deploymentStatus=INSTALL_FINISHED
+    method: GET
+    headers: "{{get_uuid_headers}}"
+    return_content: yes
+    status_code: 200
+    body_format: json
+    timeout: 180
+    validate_certs: no
+  register: uuid
+- debug: msg="infra-deployment-uuid {{ uuid.json }}"
+
+- set_fact: upgrated_version="2018.02"
+  when: uuid.json[-1].version == "2017.11"
+
+- set_fact: suite_namespace_from_api={{uuid.json[-1].namespace}}
+- debug: msg="Current version is {{uuid.json[-1].version}} , will upgrade to {{upgrated_version}}"
+
+
+- name: get current namespace
+  shell: kubectl get namespace  |grep itsma |awk '{print $1}'
+  register: namespace_output
+- set_fact: current_namespace={{namespace_output.stdout}}
+- fail: msg="namespace error , please make sure suite status is INSTALL_FINISHED not SUITE_INSTALL"
+  when: current_namespace != suite_namespace_from_api
+
+- name: generate deployments.json
+  copy:
+    dest: /var/vols/itom/core/suite-install/deployments.json
+    owner: itsma
+    group: itsma
+    content: |
+      {
+        "registry_orgname": "itsma",
+        "deployments": [
+          {
+            "guid": "59f86d1c-f18b-42ed-bfc0-118f7233cd9a",
+            "namespace": "{{current_namespace}}",
+            "suites": [
+              {
+                "suite": "itsma",
+                "version": "2017.07.02",
+                "base_version": "{{uuid.json[-1].version}}"
+              }
+            ]
+          }
+        ],
+        "updates": [
+          {
+            "update_version": "{{upgrated_version}}"
+          }
+        ]
+      }
+
+- name: replace
+  shell: >
+    sed  -ri '/base_version.*{{upgrated_version}}"/,/update_image/s#(.*update_image": ).*#\1"itom-itsma-update:170919"#' {{suite_config_template_path}}/../suiteinfo.json &&
+    sed  -ri '/base_version.*{{upgrated_version}}"/,/update_image/s#(.*simple_update": ).*#\1"*^" ,#' {{suite_config_template_path}}/../suiteinfo.json
+
+- replace: dest={{suite_config_template_path}}/suite_upgrade_tmp.yaml regexp='#type:\sNodePort' replace="type{{':'}} NodePort"
+#temp, delete this after CDF147
+#- replace: dest={{suite_config_template_path}}/suite_upgrade_tmp.yaml regexp='\s\s\s\stargetPort:\s80$' replace="    targetPort{{':'}} 8080"
+#- name: Hack the installer for REST call
+#  blockinfile:
+#    dest: "{{suite_config_template_path}}/suite_upgrade_tmp.yaml"
+#    insertbefore: '^\s*selector:.*$'
+#    block: |2
+#        - name: deployer-backend
+#          nodePort: 31009
+#          port: 8081
+#          targetPort: 8081
+#############################CDF BUG
+- replace: dest={{suite_config_template_path}}/suite_upgrade_tmp.yaml regexp='\s\s\s\stargetPort :\s8081$' replace="    targetPort{{':'}} 8081"
+#############################CDF BUG
+
+# uncomment this after CDF147
+- lineinfile:
+    dest: "{{suite_config_template_path}}/suite_upgrade_tmp.yaml"
+    state: present
+    insertafter: '    targetPort: 8081'
+    line: '    nodePort: 31009'
+- name: replace upgrade image with new image tag
+  lineinfile:
+    path: "{{suite_config_template_path}}/suite_upgrade_tmp.yaml"
+    state: present
+#replace all except localhost
+    regexp: '    image: (?!localhost:5000).*$'
+    insertafter: '  - name: suite-config'
+    line: '    image: shc-harbor-dev.hpeswlab.net/itsma/itom-itsma-update:{{upgrade_tag}}'

@@ -1,0 +1,104 @@
+    - debug: msg="backup_dir_from_host={{backup_package_dir}}"
+    - debug: msg="backup_pkg_name_from_host={{backup_package_name}}"
+    - name: get a list of backup zip package with metadata
+      uri:
+        url: http://{{ ansible_fqdn|lower }}:31988/suitebackup/backup/package
+        method: GET
+        headers: "{{ token_headers }}"
+        return_content: yes
+        status_code: 200
+        body_format: json
+        validate_certs: no
+      register: backup_list
+#if backup dir and backup package name not given by user, will get from backup api, else use the given one
+    - set_fact: backup_package_dir={{backup_list.json.backup_list[-1].itom_suite_backup_package_dir}}
+      when: backup_package_dir == ""
+    - set_fact: backup_package_name={{backup_list.json.backup_list[-1].itom_suite_backup_package_name}}
+      when: backup_package_name == ""
+    - debug: msg="backup_dir={{backup_package_dir}}"
+    - debug: msg="backup_pkg_name={{backup_package_name}}"
+
+
+    - uri:
+        url: https://{{ ansible_fqdn|lower }}:5443/suiteInstaller/urest/v1.1/tokens
+        method: POST
+        headers: "{{ token_headers }}"
+        return_content: yes
+        status_code: 201
+        body: "{{ token_body }}"
+        body_format: json
+        timeout: 180
+        validate_certs: no
+      register: token
+    - debug: msg="infra-token {{ token }}"
+    - uri:
+        url: https://{{ ansible_fqdn|lower }}:5443/suiteInstaller/urest/v1.1/csrf-token
+        method: GET
+        headers: "{{csrf_headers}}"
+        return_content: yes
+        status_code: 201
+        body_format: json
+        timeout: 180
+        validate_certs: no
+      register: csrf
+    - debug: msg="infra-csrf {{ csrf }}"
+    - uri:
+        url: https://{{ ansible_fqdn|lower }}:5443/suiteInstaller/urest/v1.1/deployment?deploymentStatus=INSTALL_FINISHED
+        method: GET
+        headers: "{{get_uuid_headers}}"
+        return_content: yes
+        status_code: 200
+        body_format: json
+        timeout: 180
+        validate_certs: no
+      register: uuid
+    - debug: msg="infra-deployment-uuid {{ uuid.json }}"
+
+    - name: start upgrade image
+      uri:
+        url: https://{{ ansible_fqdn|lower }}:5443/suiteInstaller/urest/v1.1/deployment/{{uuid.json[-1].deploymentUuid}}/startUpgradeImages
+        method: GET
+        headers: "{{csrf_headers}}"
+        return_content: yes
+        status_code: 200
+        body_format: json
+        timeout: 180
+        validate_certs: no
+
+    - name: get upgrade image start result
+      uri:
+        url: http://{{ ansible_fqdn|lower }}:31009/itsma/deployer/status
+        method: GET
+        status_code: 200
+      register: result
+      until: result.status == 200
+      retries: 50
+      delay: 10
+
+    - name: stop all service
+      uri:
+        url: http://{{ansible_fqdn|lower}}:31009/itsma/itsma_services
+        method: DELETE
+        status_code: 202
+    - name: get upgrade image start  status code
+      uri:
+        url: http://{{ansible_fqdn|lower}}:31009/itsma/deployer/status
+        method: GET
+      register: result
+      until: result.json.phase.name == "IDLE"
+      retries: 90
+      delay: 10
+
+    - name: upgrade all service
+      uri:
+        url: http://{{ansible_fqdn|lower}}:31009/itsma/update
+        body: "{{suite_update_body}}"
+        method: POST
+        status_code: 201
+        body_format: json
+        timeout: 5000
+        validate_certs: no
+
+    - name: end play
+      meta: end_play
+

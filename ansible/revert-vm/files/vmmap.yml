@@ -1,0 +1,4 @@
+vms:
+  - { name: 'shc-itsma-suite-cd-201', ip: '15.119.87.201', uuid: '4217757c-1185-0f4c-71d3-7eee8e379fa2' }
+  - { name: 'shc-itsma-suite-cd-143', ip: '15.119.87.143', uuid: '4217525e-6f3a-c123-822f-eaf2e111c7e0' }
+  - { name: 'shc-itsma-suite-cd-144', ip: '15.119.87.144', uuid: '42174a38-fbaa-d0de-95a0-5f0719ef080d' }

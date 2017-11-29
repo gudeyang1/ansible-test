@@ -1,0 +1,14 @@
+---
+# tasks file for get_suite_status
+- name: version match test
+  shell: cat /opt/kubernetes/version.txt
+  ignore_errors: True
+  register: cdf_version
+- debug: msg="{{cdf_version}}"
+- name: get suite status
+  shell: >
+    kubectl get namespace |grep itsma
+  register: suite_exist
+  ignore_errors: True
+- name: debug suite status
+  debug: msg="get suite status return code:{{suite_exist.rc}}"

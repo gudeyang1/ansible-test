@@ -1,0 +1,60 @@
+---
+#- shell: >
+#    cd /opt/kubernetes/scripts &&
+#    ./downloadimages.sh -s itsma -r shc-harbor-dev.hpeswlab.net/  -u {{SuiteDataImageTag}} -p 1Qaz2wsx  -y  -l  -T dev &&
+#    ./uploadimages.sh -d /var/opt/kubernetes/offline/ -s itsma &&
+#    sed -i.bck '/"image"/d' /var/vols/itom/core/suite-install/suite_feature/itsma/{{suite_version}}/itsma_suitefeatures.{{suite_version}}.json && 
+#- replace: dest=/var/vols/itom/core/suite-install/itsma/suite_config_template.yaml regexp='\$IMAGE_NAME' replace='{{ installer_registry }}{{':'}}{{ installer_tag }}'
+#- replace: dest=/var/vols/itom/core/suite-install/itsma/suite_config_template.yaml regexp='#type:\sNodePort' replace="type{{':'}} NodePort"
+#- lineinfile:
+#    dest: /var/vols/itom/core/suite-install/itsma/suite_config_template.yaml 
+#    state: present
+#    insertafter: '    targetPort: 8081'
+#    line: '    nodePort: 31008'
+
+#- name: Hack the credentials for private registry
+#  blockinfile:
+#    dest: /var/vols/itom/core/suite-install/itsma/suite_config_template.yaml
+#    insertbefore: BOF
+#    marker: "# {mark} REGISTRY SECRET"
+#    content: |
+#      apiVersion: v1
+#      kind: Secret
+#      metadata:
+#        name: registrypullsecret
+#        namespace: core
+#      data:
+#        .dockerconfigjson: ewoJImF1dGhzIjogewoJCSJkb2NrZXIuaG9zLmhwZWNvcnAubmV0IjogewoJCQkiYXV0aCI6ICJaR1Y1WVc1bkxtZDFRR2h3WlM1amIyMDZXWFYzWldrNU1EazJjV2wxTGc9PSIsCgkJCSJlbWFpbCI6ICJkZXlhbmcuZ3VAaHBlLmNvbSIKCQl9LAoJCSJzaGMtbmV4dXMtcmVwby5ocGVzd2xhYi5uZXQ6OTAwMCI6IHsKCQkJImF1dGgiOiAiWkdWMk9tUmxkZz09IiwKCQkJImVtYWlsIjogImRleWFuZy5ndUBocGUuY29tIgoJCX0KCX0KfQ==
+#      type: kubernetes.io/dockerconfigjson
+#      ---
+- name: download cdf image and push to localhost 5000
+  shell: >
+    docker pull {{item}} &&
+    docker tag {{item}} `echo {{item}}|awk -F "/" '{print "localhost:5000/"$2"/"$3}'` &&
+    docker push `echo {{item}}|awk -F "/" '{print "localhost:5000/"$2"/"$3}'`
+  with_items:
+    - "shc-harbor-dev.hpeswlab.net/itsma/heapster:v1.3.0"
+    - "shc-harbor-dev.hpeswlab.net/itsma/idm-pfs:1.18.4"
+    - "shc-harbor-dev.hpeswlab.net/itsma/itom-platform-postgresql:9.4.12-00292"
+    - "shc-harbor-dev.hpeswlab.net/itsma/mng-portal:1.4-00292"
+    - "shc-harbor-dev.hpeswlab.net/itsma/nginx-ingress:0.9.0-00292"
+- name: delete image list in feature.json
+  shell: >
+    find ./ -name itsma_suitefeatures*.json -exec sed -i '/"image"/d'  {} \;
+
+- name: replace  deployer image name in suiteinfo.json 
+  shell: >
+    sed -ri 's#(.*image":").*(",)#\1{{ installer_registry }}:{{ installer_tag }}\2#g' /var/vols/itom/core/suite-install/suiteinfo.json
+- file: state=directory dest={{suite_config_template_path}}/output/ owner=itsma group=itsma
+- file: state=directory dest={{global_nfs_expose}}/jdbc/ owner=itsma group=itsma
+- name: download jdbc.jar
+  get_url:
+    url: "{{jdbc_url}}"
+    dest: "{{item}}" 
+    timeout: 30
+    checksum: md5:{{jdbc_md5}}
+    owner: itsma
+    group: itsma
+  with_items:
+    - "{{suite_config_template_path}}/output/ojdbc.jar"
+    - "{{global_nfs_expose}}/jdbc/ojdbc.jar"

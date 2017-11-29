@@ -1,0 +1,42 @@
+---
+# tasks file for suite-backup
+- name: get backup namespace
+  shell: kubectl get namespace  |grep itsma |awk '{print $1}'
+  register: namespace_output
+- set_fact: current_namespace={{namespace_output.stdout}}
+
+- name: wait until backup api is ready for new backup 
+  uri:
+    url: http://{{ ansible_fqdn|lower }}:31988/suitebackup/backup
+    method: GET
+    status_code: 200
+  register: current_backup_status
+  until: current_backup_status.json.backupStatus != "BACKUPING"
+  retries: 20
+  delay: 10
+
+- name: start backup
+  uri:
+    url: http://{{ ansible_fqdn|lower }}:31988/suitebackup/backup
+    method: POST
+    headers: "{{ token_headers }}"
+    return_content: yes
+    status_code: 201
+    body: "{{backup_body}}"
+    body_format: json
+    timeout: 180
+    validate_certs: no
+
+- name: get backup result
+  uri:
+    url: http://{{ ansible_fqdn|lower }}:31988/suitebackup/backup
+    method: GET
+    headers: "{{ token_headers }}"
+    return_content: yes
+    status_code: 200
+    body_format: json
+    validate_certs: no
+  register: backup_status
+  until: backup_status.json.backupStatus == "SUCCESS"
+  retries: 20
+  delay: 5

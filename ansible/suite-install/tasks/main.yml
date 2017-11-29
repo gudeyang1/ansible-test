@@ -1,0 +1,159 @@
+    - replace: dest="{{suite_config_template_path}}/suite_config_template.yaml" regexp='\$IMAGE_NAME' replace='{{ installer_registry }}{{':'}}{{ installer_tag }}'
+    - replace: dest="{{suite_config_template_path}}/suite_config_template.yaml" regexp='#type:\sNodePort' replace="type{{':'}} NodePort"
+    - lineinfile:
+        dest: "{{suite_config_template_path}}/suite_config_template.yaml"
+        state: present
+        insertafter: '    targetPort: 8081'
+        line: '    nodePort: 31008'
+    - replace:
+        dest: "{{suite_config_template_path}}/suite_config_template.yaml"
+        before: '    env:'
+        regexp: '(\s+)image:\s.*'
+        replace: '\n    image: {{installer_registry}}:{{installer_tag}}'
+    - uri:
+        url: https://{{ ansible_fqdn|lower }}:5443/suiteInstaller/urest/v1.1/tokens
+        method: POST
+        headers: "{{ token_headers }}"
+        return_content: yes
+        status_code: 201
+        body: "{{ token_body }}"
+        body_format: json
+        timeout: 180
+        validate_certs: no
+      register: token
+    - debug: msg="infra-token {{ token }}"
+    - uri:
+        url: https://{{ ansible_fqdn|lower }}:5443/suiteInstaller/urest/v1.1/csrf-token
+        method: GET
+        headers: "{{csrf_headers}}"
+        return_content: yes
+        status_code: 201
+        body_format: json
+        timeout: 180
+        validate_certs: no
+      register: csrf
+    - debug: msg="infra-csrf {{ csrf }}"
+    - uri:
+        url: https://{{ ansible_fqdn|lower }}:5443/suiteInstaller/urest/v1.1/deployment
+        method: POST
+        headers: "{{uuid_headers}}"
+        return_content: yes
+        status_code: 201
+        body_format: json
+        timeout: 180
+        validate_certs: no
+      register: uuid
+    - debug: msg="infra-deployment-uuid {{ uuid }}"
+
+    - uri:
+        url: https://{{ ansible_fqdn|lower }}:5443/suiteInstaller/urest/v1.1/deployment/{{ uuid.json.uuid }}/feature
+        method: POST
+        headers: "{{feature_set_headers}}"
+        return_content: yes
+        status_code: 201
+        body: "{{ feature_set_body }}"
+        body_format: json
+        timeout: 180
+        validate_certs: no
+      register: feature_set
+    - debug: msg="infra-feature_set {{ feature_set }}"
+###### pv
+    - name: create global-volume
+      uri:
+        url: https://{{ ansible_fqdn|lower }}:5443/suiteInstaller/urest/v1.1/deployment/{{ uuid.json.uuid }}/volumes
+        method: POST
+        headers: "{{volume_headers}}"
+        return_content: yes
+        status_code: 200
+        body: "{{global_volume_body}}"
+        body_format: json
+        timeout: 180
+        validate_certs: no
+    - name: create db volume
+      uri:
+        url: https://{{ ansible_fqdn|lower }}:5443/suiteInstaller/urest/v1.1/deployment/{{ uuid.json.uuid }}/volumes
+        method: POST
+        headers: "{{volume_headers}}"
+        return_content: yes
+        status_code: 200
+        body: "{{db_volume_body}}"
+        body_format: json
+        timeout: 180
+        validate_certs: no
+    - name: create sma volume
+      uri:
+        url: https://{{ ansible_fqdn|lower }}:5443/suiteInstaller/urest/v1.1/deployment/{{ uuid.json.uuid }}/volumes
+        method: POST
+        headers: "{{volume_headers}}"
+        return_content: yes
+        status_code: 200
+        body: "{{smartanalytics_volume_body}}"
+        body_format: json
+        timeout: 180
+        validate_certs: no
+###### pv end
+    - uri:
+        url: https://{{ ansible_fqdn|lower }}:5443/suiteInstaller/urest/v1.1/labels
+        method: GET
+        headers: "{{ label_headers }}"
+        return_content: yes
+        status_code: 200
+        body_format: json
+        timeout: 180
+        validate_certs: no
+      register: label
+    - debug: msg="infra-label {{ label }}"
+    - uri:
+        url: https://{{ ansible_fqdn|lower }}:5443/suiteInstaller/urest/v1.1/deployment/{{ uuid.json.uuid }}/suite-configuration
+        method: POST
+        headers: "{{suite_installer_headers}}"
+        return_content: yes
+        status_code: 200
+        body: "{{ suite_installer_body }}"
+        body_format: json
+        timeout: 180
+        validate_certs: no
+      register: suite_installer
+    #- debug: msg="infra-suite_installer {{ suite_installer }}"
+    - name: get deployer status code
+      uri:
+        url: http://{{ ansible_fqdn|lower }}:31008/itsma/install
+        method: GET
+        status_code: 200
+      register: result
+      until: result.status == 200
+      retries: 20
+      delay: 10
+
+    - name: get backupservice  status code
+      uri:
+        url: http://{{ ansible_fqdn|lower }}:31988/health
+        method: GET
+        status_code: 200
+      register: result
+      until: result.status == 200
+      retries: 30
+      delay: 10
+      when: install_type == "install_from_backup"
+
+    - uri:
+        url: http://{{ ansible_fqdn|lower }}:31008/itsma/install
+        method: POST
+        status_code: 201
+        body: "{{ install_post_body }}"
+        body_format: json
+        timeout: 5000
+        validate_certs: no
+    - file: state=directory dest={{global_nfs_expose}}/jdbc/ owner=1999 group=1999
+    - name: download jdbc.jar
+      get_url:
+        url: "{{jdbc_url}}"
+        dest: "{{item}}"
+        timeout: 30
+        checksum: md5:{{jdbc_md5}}
+        owner: 1999
+        group: 1999
+      with_items:
+        - "{{suite_config_template_path}}/output/ojdbc.jar"
+        - "{{global_nfs_expose}}/jdbc/ojdbc.jar"
+

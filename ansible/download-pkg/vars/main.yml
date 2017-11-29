@@ -1,0 +1,5 @@
+instantclient_basic_linux_url: http://shc-nexus-repo.hpeswlab.net:8080/repository/itsma-releases/com/hpe/shared/services/instantclient-basic-linux/12.1.0.1.0/instantclient-basic-linux-12.1.0.1.0.zip
+instantclient_basic_linux_md5: 7c3b522424713cc8d3814356cf092c02
+instantclient_sqlplus_linux_url: http://shc-nexus-repo.hpeswlab.net:8080/repository/itsma-releases/com/hpe/shared/services/instantclient-sqlplus-linux/12.1.0.1.0/instantclient-sqlplus-linux-12.1.0.1.0.zip
+instantclient_sqlplus_linux_md5: c3c5bfefce74974f98fd8e72fb2cd44f
+

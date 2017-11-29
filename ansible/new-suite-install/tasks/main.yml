@@ -1,0 +1,99 @@
+- name: replace  deployer image name in suiteinfo.json 
+  shell: >
+    sed -ri 's#(.*image":").*(",)#\1{{ installer_registry }}:{{ installer_tag }}\2#g' /var/vols/itom/core/suite-install/suiteinfo.json
+- name: get token
+  uri:
+    url: http://{{ ansible_fqdn|lower }}:30022/urest/v1.1/cdf/token
+    method: POST
+    headers: "{{ token_headers }}"
+    return_content: yes
+    status_code: 200
+    body: "{{ token_body }}"
+    body_format: json
+    timeout: 180
+    validate_certs: no
+  register: token
+- name: get crfs token
+  uri:
+    url: http://{{ ansible_fqdn|lower }}:30022/urest/v1.1/csrf-token
+    method: GET
+    headers: "{{csrf_headers}}"
+    return_content: yes
+    status_code: 201
+    body_format: json
+    timeout: 180
+    validate_certs: no
+  register: csrf
+
+- set_fact: format_cookie={{csrf.set_cookie|regex_replace('path=/;HttpOnly','')|regex_replace(';','')}}
+- name: get cdf deployment status
+  uri:
+    url: http://{{ ansible_fqdn|lower }}:30022/urest/v1.1/deployment/status
+    method: GET
+    headers: "{{suite_installer_headers}}"
+    return_content: yes
+    status_code: 200
+    timeout: 180
+    validate_certs: no
+  register: deployment_status
+  until: deployment_status.json.suite_db == "finished" and deployment_status.json.idm == "finished"
+  retries: 30
+  delay: 10
+
+- name: start suite deployer pod
+  uri:
+    url: http://{{ ansible_fqdn|lower }}:30022/urest/v1.1/deployment/suite-configuration
+    method: POST
+    headers: "{{suite_installer_headers}}"
+    return_content: yes
+    status_code: 200
+    timeout: 180
+    validate_certs: no
+  register: suite_installer
+
+- name: open node port 31008 for suite deployer
+  shell: >
+    kubectl  get svc --namespace=core suite-conf-svc-itsma  -o yaml |sed  's/type: ClusterIP/type: NodePort/' |sed '/^.*targetPort: 8081/a\\    nodePort: 31008' |kubectl replace -f -
+
+- name: get deployer status code
+  uri:
+    url: http://{{ ansible_fqdn|lower }}:31008/itsma/install
+    method: GET
+    status_code: 200
+  register: result
+  until: result.status == 200
+  retries: 20
+  delay: 10
+
+- name: get backupservice  status code
+  uri:
+    url: http://{{ ansible_fqdn|lower }}:31988/health
+    method: GET
+    status_code: 200
+  register: result
+  until: result.status == 200
+  retries: 30
+  delay: 10
+  when: install_type == "install_from_backup"
+
+- name: deploy suite service
+  uri:
+    url: http://{{ ansible_fqdn|lower }}:31008/itsma/install
+    method: POST
+    status_code: 201
+    body: "{{ install_post_body }}"
+    body_format: json
+    timeout: 5000
+    validate_certs: no
+- file: state=directory dest={{global_nfs_expose}}/jdbc/ owner=1999 group=1999
+- name: download jdbc.jar
+  get_url:
+    url: "{{jdbc_url}}"
+    dest: "{{item}}"
+    timeout: 30
+    checksum: md5:{{jdbc_md5}}
+    owner: 1999
+    group: 1999
+  with_items:
+    - "{{suite_config_template_path}}/output/ojdbc.jar"
+    - "{{global_nfs_expose}}/jdbc/ojdbc.jar"

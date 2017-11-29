@@ -1,0 +1,56 @@
+- name: get backup namespace
+  shell: kubectl get namespace  |grep itsma |awk '{print $1}'
+  register: namespace_output
+- set_fact: current_namespace={{namespace_output.stdout}}
+- name: check service status for 5 minus until success or failed....
+  uri:
+      url: http://{{ ansible_fqdn|lower }}:31008/itsma/install
+      method: GET
+      headers: "{{ token_headers }}"
+      return_content: yes
+      status_code: 200
+      body_format: json
+      timeout: 180
+      validate_certs: no
+  register: result
+# exit when one service failed or  when all service succed
+  until: "'FAILED' in result.json|json_query('itsmaServiceStatuses[*].status') or 'SUCCESS' ==  result.json|json_query('itsmaServiceStatuses[*].status')|unique |join('')"
+  retries: 30
+  delay: 10
+
+- name: return fail when some of suite service failed.
+  fail:
+    msg: "{{result.json.itsmaServiceStatuses}}"
+  when: "'FAILED' in result.json|json_query('itsmaServiceStatuses[*].status') "
+
+- name: add node port in configure service yaml
+  shell: kubectl get svc  --namespace="{{current_namespace}}" itom-itsma-config-svc -o yaml |sed  's/type{{':'}} ClusterIP/type{{':'}} NodePort/' |sed '/^.*targetPort{{':'}} 8081/a\\    nodePort{{':'}} 31010' |kubectl replace -f -
+
+- name: test rte connection......
+  uri:
+    url: http://{{ ansible_fqdn|lower }}:31010/configuration/connServiceManager
+    method: POST
+    headers: "{{ token_headers }}"
+    return_content: yes
+    status_code: 200
+    body: "{{test_sm_info_body}}"
+    body_format: json
+    timeout: 180
+    validate_certs: no
+
+- name: apply sm rte
+  uri:
+    url: http://{{ ansible_fqdn|lower }}:31010/configuration/config
+    method: POST
+    headers: "{{ token_headers }}"
+    return_content: yes
+    status_code: 200
+    body: "{{apply_sm_info_body}}"
+    body_format: json
+    timeout: 180
+    validate_certs: no
+
+
+- name: end play
+  meta: end_play
+

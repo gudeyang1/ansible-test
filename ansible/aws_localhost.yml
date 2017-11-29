@@ -1,0 +1,71 @@
+- hosts: localhost
+  become: true
+  become_user: root
+  become_method: sudo 
+  gather_facts: False
+  pre_tasks:
+    - name: debug
+      shell: >
+        aws ecr get-login --region {{region}}
+      register: aws_login
+    - set_fact: docker_login_cmd={{aws_login.stdout}}
+    - name: generate ECR info
+      shell: >
+        {{docker_login_cmd}}
+    - name: generate login secret
+      shell: >
+        base64 -w 0 ~/.docker/config.json
+      register: secret
+    - set_fact: dockerconfigjson={{secret.stdout}}
+    - name: Hack the credentials for private registry
+      blockinfile:
+        dest: "{{suite_config_template_path}}/suite_config_template.yaml" 
+        insertbefore: BOF
+        marker: "# {mark} REGISTRY SECRET"
+        content: |
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: registrypullsecret
+            namespace: core
+          data:
+            .dockerconfigjson: {{dockerconfigjson}} 
+          type: kubernetes.io/dockerconfigjson
+          ---
+    - replace: dest={{suite_config_template_path}}/suite_config_template.yaml regexp='#type:\sNodePort' replace="type{{':'}} NodePort"
+    - lineinfile:
+        dest: "{{suite_config_template_path}}/suite_config_template.yaml" 
+        state: present
+        insertafter: '    targetPort: 8081'
+        line: '    nodePort: 31008'
+    - file: state=directory dest={{suite_config_template_path}}/output/yaml_templates owner=itsma group=itsma 
+    - name: generate secert yaml
+      copy:
+        dest: "{{suite_config_template_path}}/output/yaml_templates/suite_secret.yaml"
+        content: |
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: registrypullsecret
+            #namespace: ${namespace}
+            namespace: itsma1
+          data:
+            .dockerconfigjson: {{dockerconfigjson}}
+          type: kubernetes.io/dockerconfigjson
+          ---
+      when: not (installer_registry | match("^localhost"))  # don't generate secret.yml if use localhost:5000
+    #- name: mount nfs global-pv path to /var/vols/itom/itsma/itsma-itsma-global
+    #  mount: src={{nfs_ip}}:/{{global_nfs_expose}} path=/var/vols/itom/itsma/itsma-itsma-global boot=no state=mounted fstype=nfs 
+    - name: create jdbc folder on global-pv
+      file: state=directory dest={{global_nfs_expose}}/jdbc owner=itsma group=itsma
+    - name: regenerate secret.yml every 10h
+      cron: name="regenerate secret.yml" minute="0" hour="*/10" job="ansible-playbook /usr/local/ansible/aws_secert.yml -i /usr/local/ansible/aws_host"
+    - name: regenerate secret.yml at boot
+      blockinfile:
+        path: /etc/rc.d/rc.local
+        block: |
+          ansible-playbook /usr/local/ansible/aws_secert.yml -i /usr/local/ansible/aws_host
+        mode: 0755
+  roles:
+    - { role: reset-mng-portal-pass}
+    - { role: suite-install}

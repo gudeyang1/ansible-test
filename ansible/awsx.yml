@@ -1,0 +1,47 @@
+- hosts: localhost
+  become: true
+  become_user: root
+  become_method: sudo 
+  gather_facts: False
+  pre_tasks:
+    - set_fact: dockerconfigjson="ewoJImF1dGhzIjogewoJCSJzaGMtZGV2b3BzLWhhcmJvci5pdHNtYS14LmlvIjogewoJCQkiYXV0aCI6ICJZMmxmZFhObGNqcFFZWE56ZDI5eVpERT0iCgkJfQoJfQp9"
+    - name: Hack the credentials for private registry
+      blockinfile:
+        dest: "{{suite_config_template_path}}/suite_config_template.yaml" 
+        insertbefore: BOF
+        marker: "# {mark} REGISTRY SECRET"
+        content: |
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: registrypullsecret
+            namespace: core
+          data:
+            .dockerconfigjson: {{dockerconfigjson}} 
+          type: kubernetes.io/dockerconfigjson
+          ---
+    - replace: dest={{suite_config_template_path}}/suite_config_template.yaml regexp='#type:\sNodePort' replace="type{{':'}} NodePort"
+    - lineinfile:
+        dest: "{{suite_config_template_path}}/suite_config_template.yaml" 
+        state: present
+        insertafter: '    targetPort: 8081'
+        line: '    nodePort: 31008'
+    - file: state=directory dest={{suite_config_template_path}}/output/yaml_templates 
+    - name: generate secert yaml
+      copy:
+        dest: "{{suite_config_template_path}}/output/yaml_templates/suite_secret.yaml"
+        content: |
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: registrypullsecret
+            #namespace: ${namespace}
+            namespace: itsma1
+          data:
+            .dockerconfigjson: {{dockerconfigjson}}
+          type: kubernetes.io/dockerconfigjson
+          ---
+    - name: create jdbc folder on global-pv
+      file: state=directory dest={{global_nfs_expose}}/jdbc
+  roles:
+    - { role: suite-install}

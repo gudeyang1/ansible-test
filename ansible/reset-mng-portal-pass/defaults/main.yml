@@ -1,0 +1,12 @@
+# reset password of mng-portal head
+reset_pass_headers:
+  Content-Type: "application/json"
+  Accept: "application/json"
+  Cookie: "{{reset_pass_cookie}}"
+  X-CSRF-TOKEN: "{{reset_pass_csrfToken}}"
+
+reset_pass_body:
+#new pass
+  password: "{{cdf_admin_password}}"
+#old pass
+  original_password: "{{mng_portal_passwd}}"

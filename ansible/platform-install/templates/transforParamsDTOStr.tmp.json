@@ -1,0 +1,616 @@
+{
+    "connection": {
+        "exthost": "{{ansible_fqdn}}",
+        "port": "443",
+        "serverkey": "serverkey",
+        "servercrt": "servercrt",
+        "rootcrt": "rootcrt"
+    },
+    "masterHA": false,
+    "useCustomizedCert": false,
+    "allowWorkerOnMaster": true,
+    "masterNodes": [
+        {
+            "order": "primary",
+            "hostname": "{{ansible_fqdn}}",
+            "password": null,
+            "thinpoolDevice": null,
+            "flannelIface": null,
+            "nodeHostUser": "root",
+            "config": true,
+            "validate": true
+        },
+        {
+            "order": "secondary",
+            "hostname": "",
+            "password": "",
+            "thinpoolDevice": null,
+            "flannelIface": null,
+            "nodeHostUser": null,
+            "config": false,
+            "validate": null
+        },
+        {
+            "order": "tertiary",
+            "hostname": "",
+            "password": "",
+            "thinpoolDevice": null,
+            "flannelIface": null,
+            "nodeHostUser": null,
+            "config": false,
+            "validate": null
+        }
+    ],
+
+    "workNodes": [
+{% for host in groups['nodes'] %}
+        {
+            "host": "{{host}}",
+            "validate": true,
+            "config": false,
+            "password": "iso*help",
+            "type": {
+                "name": "<<DEFAULT>>",
+                "label": "default",
+                "cpu_core": 4,
+                "memory_gb": 8,
+                "storage_gb": 20,
+                "size": {
+                    "SMALL": {
+                        "min_num": 1
+                    },
+                    "MEDIUM": {
+                        "min_num": 2
+                    },
+                    "LARGE": {
+                        "min_num": 4
+                    }
+                }
+            },
+            "thinpoolDevice": "",
+            "flannelIface": "",
+            "nodeHostUser": "root",
+            "skipResourceCheck": false
+        }{% if not loop.last %},
+{% endif %}
+{% endfor %}
+    ],
+    "autopassCheck": {
+        "eula": true,
+        "call_home": false
+    },
+    "reqVolumes": [
+        {
+            "name": "global-volume",
+            "access_mode": "ReadWriteMany",
+            "description": "GLOBAL_VOLUME_DESC",
+            "performance": "normal",
+            "reclaim_policy": "Delete",
+            "size": "50Gi",
+            "type": {
+                "id": "nfs",
+                "name": "NFS"
+            },
+            "param": {
+                "nfspath": "/var/vols/itom/itsma/itsma-itsma-global",
+                "nfspathCol": [
+                    "/var/vols/itom/itsma/itsma-itsma-global",
+                    "/var/vols/itom/core",
+                    "/var/vols/itom/itsma/itsma-itsma-db",
+                    "/var/vols/itom/itsma/itsma-itsma-smartanalytics"
+                ],
+                "nfsip": "{{ansible_fqdn}}"
+            },
+            "validateResult": {
+                "status": "RIGHT",
+                "errors": []
+            }
+        },
+        {
+            "name": "db-volume",
+            "access_mode": "ReadWriteMany",
+            "description": "DB_VOLUME_DESC",
+            "performance": "normal",
+            "reclaim_policy": "Delete",
+            "size": "50Gi",
+            "type": {
+                "id": "nfs",
+                "name": "NFS"
+            },
+            "param": {
+                "nfspath": "/var/vols/itom/itsma/itsma-itsma-db",
+                "nfspathCol": [
+                    "/var/vols/itom/itsma/itsma-itsma-global",
+                    "/var/vols/itom/core",
+                    "/var/vols/itom/itsma/itsma-itsma-db",
+                    "/var/vols/itom/itsma/itsma-itsma-smartanalytics"
+                ],
+                "nfsip": "{{ansible_fqdn}}"
+            },
+            "validateResult": {
+                "status": "RIGHT",
+                "errors": []
+            }
+        },
+        {
+            "name": "smartanalytics-volume",
+            "access_mode": "ReadWriteMany",
+            "description": "SMA_VOLUME_DESC",
+            "performance": "normal",
+            "reclaim_policy": "Delete",
+            "size": "50Gi",
+            "type": {
+                "id": "nfs",
+                "name": "NFS"
+            },
+            "param": {
+                "nfspath": "/var/vols/itom/itsma/itsma-itsma-smartanalytics",
+                "nfspathCol": [
+                    "/var/vols/itom/itsma/itsma-itsma-global",
+                    "/var/vols/itom/core",
+                    "/var/vols/itom/itsma/itsma-itsma-db",
+                    "/var/vols/itom/itsma/itsma-itsma-smartanalytics"
+                ],
+                "nfsip": "{{ansible_fqdn}}"
+            },
+            "validateResult": {
+                "status": "RIGHT",
+                "errors": []
+            }
+        },
+        {
+            "name": "itom-vol-claim",
+            "access_mode": "ReadWriteMany",
+            "description": "<<CDF_CORE_VOLUME_DESC>>",
+            "performance": "fast",
+            "reclaim_policy": "Delete",
+            "size": "5Gi",
+            "type": {
+                "id": "nfs",
+                "name": "NFS"
+            },
+            "param": {
+                "nfspath": "/var/vols/itom/core",
+                "nfspathCol": [
+                    "/var/vols/itom/itsma/itsma-itsma-global",
+                    "/var/vols/itom/core",
+                    "/var/vols/itom/itsma/itsma-itsma-db",
+                    "/var/vols/itom/itsma/itsma-itsma-smartanalytics"
+                ],
+                "nfsip": "{{ansible_fqdn}}"
+            },
+            "validateResult": {
+                "status": "RIGHT",
+                "errors": []
+            }
+        }
+    ],
+    "capability": {
+        "suite": "itsma",
+        "description": "<<SUITE_DESC>>",
+        "welcome_msg": "<<WELCOME_MSG>>",
+        "acronym": "Service Management Automation",
+        "initial_edition_selected": "EXPRESS",
+        "allow_custom_selection": true,
+        "volumes": [
+            {
+                "name": "global-volume",
+                "size": {
+                    "SMALL": "50Gi",
+                    "MEDIUM": null,
+                    "LARGE": null
+                },
+                "access_mode": "ReadWriteMany",
+                "reclaim_policy": "Retain",
+                "description": "GLOBAL_VOLUME_DESC",
+                "performance": "normal"
+            },
+            {
+                "name": "db-volume",
+                "size": {
+                    "SMALL": "50Gi",
+                    "MEDIUM": null,
+                    "LARGE": null
+                },
+                "access_mode": "ReadWriteMany",
+                "reclaim_policy": "Retain",
+                "description": "DB_VOLUME_DESC",
+                "performance": "normal"
+            },
+            {
+                "name": "smartanalytics-volume",
+                "size": {
+                    "SMALL": "50Gi",
+                    "MEDIUM": null,
+                    "LARGE": null
+                },
+                "access_mode": "ReadWriteMany",
+                "reclaim_policy": "Retain",
+                "description": "SMA_VOLUME_DESC",
+                "performance": "normal"
+            },
+            {
+                "name": "itom-vol-claim",
+                "size": {
+                    "SMALL": "5Gi",
+                    "MEDIUM": "10Gi",
+                    "LARGE": "20Gi"
+                },
+                "access_mode": "ReadWriteMany",
+                "reclaim_policy": "Retain",
+                "description": "<<CDF_CORE_VOLUME_DESC>>",
+                "performance": "fast"
+            }
+        ],
+        "volumeRef": [
+            "global-volume",
+            "db-volume",
+            "smartanalytics-volume"
+        ],
+        "editions": [
+            {
+                "id": "EXPRESS",
+                "id_defined_in_autopass": "23136",
+                "name": "<<EXPRESS_EDITION>>",
+                "description": "<<EXPRESS_EDITION_DESC>>",
+                "display": false,
+                "selected": true,
+                "has_feature_sets": [
+                    {
+                        "id": "FS3",
+                        "selected": true,
+                        "enabled": false
+                    },
+                    {
+                        "id": "FS5",
+                        "selected": true,
+                        "enabled": false
+                    },
+                    {
+                        "id": "FS6",
+                        "selected": true,
+                        "enabled": false
+                    },
+                    {
+                        "id": "FS1",
+                        "selected": true,
+                        "enabled": false
+                    },
+                    {
+                        "id": "FS10",
+                        "selected": true,
+                        "enabled": false
+                    },
+                    {
+                        "id": "FS4",
+                        "selected": true,
+                        "enabled": false
+                    },
+                    {
+                        "id": "FS9",
+                        "selected": true,
+                        "enabled": false
+                    },
+                    {
+                        "id": "FS8",
+                        "selected": true,
+                        "enabled": false
+                    },
+                    {
+                        "id": "FS2",
+                        "selected": true,
+                        "enabled": false
+                    },
+                    {
+                        "id": "FS7",
+                        "selected": true,
+                        "enabled": false
+                    }
+                ],
+                "allow_size": null
+            }
+        ],
+        "feature_sets": [
+            {
+                "id": "FS1",
+                "name": "<<SERVICE_MANAGER>>",
+                "clusterFeatureSet": null,
+                "description": "",
+                "display": "true",
+                "selected": false,
+                "volumeRef": [
+                    "global-volume"
+                ],
+                "images": [],
+                "has_features": [
+                    "always:F11:selected"
+                ]
+            },
+            {
+                "id": "FS2",
+                "name": "<<SMART_ANALYTICS>>",
+                "clusterFeatureSet": null,
+                "description": "",
+                "display": "true",
+                "selected": false,
+                "volumeRef": [
+                    "global-volume"
+                ],
+                "images": [],
+                "has_features": [
+                    "always:F21:selected"
+                ]
+            },
+            {
+                "id": "FS3",
+                "name": "<<UNIVERSAL_CMDB>>",
+                "clusterFeatureSet": null,
+                "description": "",
+                "display": "true",
+                "selected": false,
+                "volumeRef": [
+                    "global-volume"
+                ],
+                "images": [],
+                "has_features": [
+                    "always:F31:selected"
+                ]
+            },
+            {
+                "id": "FS4",
+                "name": "<<SERVICE_PORTAL>>",
+                "clusterFeatureSet": null,
+                "description": "",
+                "display": "true",
+                "selected": false,
+                "volumeRef": [
+                    "global-volume"
+                ],
+                "images": [],
+                "has_features": [
+                    "always:F41:selected"
+                ]
+            },
+            {
+                "id": "FS5",
+                "name": "<<CONTRACT>>",
+                "clusterFeatureSet": null,
+                "description": "",
+                "display": "true",
+                "selected": false,
+                "volumeRef": [
+                    "global-volume"
+                ],
+                "images": [],
+                "has_features": [
+                    "always:F51:selected"
+                ]
+            },
+            {
+                "id": "FS6",
+                "name": "<<IDEA_PROPOSAL>>",
+                "clusterFeatureSet": null,
+                "description": "",
+                "display": "true",
+                "selected": false,
+                "volumeRef": [
+                    "global-volume"
+                ],
+                "images": [],
+                "has_features": [
+                    "always:F61:selected"
+                ]
+            },
+            {
+                "id": "FS7",
+                "name": "<<APPLICATION_PORTFOLIO>>",
+                "clusterFeatureSet": null,
+                "description": "",
+                "display": "true",
+                "selected": false,
+                "volumeRef": [
+                    "global-volume"
+                ],
+                "images": [],
+                "has_features": [
+                    "always:F71:selected"
+                ]
+            },
+            {
+                "id": "FS8",
+                "name": "<<PROJECT_PROGRAM>>",
+                "clusterFeatureSet": null,
+                "description": "",
+                "display": "true",
+                "selected": false,
+                "volumeRef": [
+                    "global-volume"
+                ],
+                "images": [],
+                "has_features": [
+                    "always:F81:selected"
+                ]
+            },
+            {
+                "id": "FS9",
+                "name": "<<SOFTWARE_ASSET>>",
+                "clusterFeatureSet": null,
+                "description": "",
+                "display": "true",
+                "selected": false,
+                "volumeRef": [
+                    "global-volume"
+                ],
+                "images": [],
+                "has_features": [
+                    "always:F91:selected"
+                ]
+            },
+            {
+                "id": "FS10",
+                "name": "<<FINANCIAL>>",
+                "clusterFeatureSet": null,
+                "description": "",
+                "display": "true",
+                "selected": false,
+                "volumeRef": [
+                    "global-volume"
+                ],
+                "images": [],
+                "has_features": [
+                    "always:F101:selected"
+                ]
+            }
+        ],
+        "features": [
+            {
+                "id": "F11",
+                "name": "<<F11_NAME>>",
+                "description": "<<F11_DESC>>",
+                "also_select": [],
+                "display": true,
+                "selected": true
+            },
+            {
+                "id": "F21",
+                "name": "<<F21_NAME>>",
+                "description": "<<F21_DESC>>",
+                "also_select": [],
+                "display": true,
+                "selected": true
+            },
+            {
+                "id": "F31",
+                "name": "<<F31_NAME>>",
+                "description": "<<F31_DESC>>",
+                "also_select": [],
+                "display": true,
+                "selected": true
+            },
+            {
+                "id": "F41",
+                "name": "<<F41_NAME>>",
+                "description": "<<F41_DESC>>",
+                "also_select": [],
+                "display": true,
+                "selected": true
+            },
+            {
+                "id": "F51",
+                "name": "<<F51_NAME>>",
+                "description": "<<F51_DESC>>",
+                "also_select": [],
+                "display": true,
+                "selected": true
+            },
+            {
+                "id": "F61",
+                "name": "<<F61_NAME>>",
+                "description": "<<F61_DESC>>",
+                "also_select": [],
+                "display": true,
+                "selected": true
+            },
+            {
+                "id": "F71",
+                "name": "<<F71_NAME>>",
+                "description": "<<F71_DESC>>",
+                "also_select": [],
+                "display": true,
+                "selected": true
+            },
+            {
+                "id": "F81",
+                "name": "<<F81_NAME>>",
+                "description": "<<F81_DESC>>",
+                "also_select": [],
+                "display": true,
+                "selected": true
+            },
+            {
+                "id": "F91",
+                "name": "<<F91_NAME>>",
+                "description": "<<F91_DESC>>",
+                "also_select": [],
+                "display": true,
+                "selected": true
+            },
+            {
+                "id": "F101",
+                "name": "<<F101_NAME>>",
+                "description": "<<F101_DESC>>",
+                "also_select": [],
+                "display": true,
+                "selected": true
+            }
+        ],
+        "i18n": null,
+        "images": [
+            {
+                "image": "itom-itsmax-xadmin-deploy-controller:0.1.5"
+            },
+            {
+                "image": "itom-chat-deploy-controller:1.1.0-201711.01-release"
+            }
+        ],
+        "install_size": [
+            {
+                "id": "SMALL",
+                "name": "<<SMALL_SIZE_NAME>>",
+                "description": "<<SMALL_SIZE_DESC>>",
+                "selected": true
+            },
+            {
+                "id": "MEDIUM",
+                "name": "<<MEDIUM_SIZE_NAME>>",
+                "description": "<<MEDIUM_SIZE_DESC>>",
+                "selected": false
+            },
+            {
+                "id": "LARGE",
+                "name": "<<LARGE_SIZE_NAME>>",
+                "description": "<<LARGE_SIZE_DESC>>",
+                "selected": false
+            }
+        ],
+        "version": "2018.02",
+        "core_platform_versions_supported": [
+            "2017.06",
+            "2017.09",
+            "2017.10"
+        ],
+        "highlights": null,
+        "realms": null,
+        "required_nodes": [
+            {
+                "name": "<<DEFAULT>>",
+                "label": "default",
+                "cpu_core": 4,
+                "memory_gb": 8,
+                "storage_gb": 20,
+                "size": {
+                    "SMALL": {
+                        "min_num": 1
+                    },
+                    "MEDIUM": {
+                        "min_num": 2
+                    },
+                    "LARGE": {
+                        "min_num": 4
+                    }
+                }
+            }
+        ]
+    },
+    "database": {
+        "type": "intpostgres",
+        "param": {
+            "db_user": null,
+            "db_port": null,
+            "db_name": null,
+            "db_host": null,
+            "db_password": null,
+            "db_schema": null
+        }
+    }
+}

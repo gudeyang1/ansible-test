@@ -1,0 +1,81 @@
+- name: hack yum repo to install httpd-tools
+  shell: >
+    sed -ri  's#(baseurl.*7).*(/.*/x86_64/)#\1\2#g' /etc/yum.repos.d/hpecoe.repo
+- name: install httpd-tools
+  yum: name=httpd-tools state=latest
+- name: generate transforParamsDTOStr.json from template
+  template: src=transforParamsDTOStr.tmp.json dest=/home/admin/transforParamsDTOStr.json
+
+# generate meta-data.tar.gz
+- name: delete suite-data folder if exist
+  file: dest=/home/admin/itsma-suite-data-kit state=absent
+- name: get suite-data code form github
+  git:
+    repo: https://github.houston.softwaregrp.net/SMA-RnD/itsma-suite-data.git 
+    dest: /home/admin/itsma-suite-data-kit
+    version: dev 
+    depth: 1
+    force: yes
+- shell: >
+    cd /home/admin/itsma-suite-data-kit/itsma/config &&
+    mv feature/ suite_feature &&
+    mkdir itsma &&
+    mv suite_feature/* itsma/ &&
+    mv itsma/ suite_feature/ &&
+    sed  -i '/"suite"{{':'}} "itsma",/i\    "suiteInfoList"{{':'}} [{' suiteinfo.json &&
+    sed -i '$ a\]}' suiteinfo.json &&
+    find ./ -name itsma_suitefeatures*.json -exec sed -i '/"image"/d'  {} \; &&
+    tar -zcf meta-data.tar.gz * &&
+    mv meta-data.tar.gz /home/admin/meta-data.tar.gz
+
+#    find ./ -name itsma_suitefeatures*.json -exec sed -i '/"image"/d'  {} \; &&
+- name: Download and install the infra service installer
+  get_url:
+    url: "{{ itom_base_infra_installer }}"
+    dest: /home/admin/{{ itom_base_infra_zip_name }}
+    timeout: 60
+- unarchive: src=/home/admin/{{ itom_base_infra_zip_name }} dest=/home/admin/ copy=no mode=0777
+- shell: mv /home/admin/{{ itom_base_infra }}* /home/admin/{{ itom_base_infra }}
+ 
+- name: Hack suite.yaml to open swagger port 30022 
+  blockinfile:
+    dest: "/home/admin/{{ itom_base_infra }}/objectdefs/suite.yaml"
+    insertafter: '^\s*env:$'
+    block: |2
+              - name: EXTERNAL_ACCESS_HOST
+                value: "{{ansible_fqdn}}" 
+              - name: EXTERNAL_ACCESS_PORT
+                value: "30022"
+- name: Hack suite.yaml to open swagger port 30022 two 
+  shell: >
+    sed -i '1,/type{{':'}} NodePort/{s@  #type{{':'}} NodePort@  type{{':'}} NodePort@}' /home/admin/{{ itom_base_infra }}/objectdefs/suite.yaml &&
+    sed -i '1,/nodePort{{':'}} 30022/{s@  #  nodePort{{':'}} 30022@    nodePort{{':'}} 30022@}' /home/admin/{{ itom_base_infra }}/objectdefs/suite.yaml
+#- debug: msg="ansible_host {{ ansible_host }}"
+#- debug: msg="worker_nodes {{ worker_nodes }}"
+#- debug: msg="master nodes {{ master }}"
+- replace: dest=/home/admin/{{ itom_base_infra }}/install.properties regexp='^REGISTRY_ORGNAME.*$' replace='REGISTRY_ORGNAME=itsma'
+- shell: >
+    systemctl start chronyd && systemctl enable chronyd
+- group: name=itsma gid=1999
+  when: is_master == "true"
+- user: name=itsma group=itsma uid=1999
+  when: is_master == "true"
+- shell: >
+    /home/admin/{{ itom_base_infra }}/scripts/setupNFS.sh &&
+    /home/admin/{{ itom_base_infra }}/scripts/setupNFS.sh {{global_nfs_expose}} &&
+    /home/admin/{{ itom_base_infra }}/scripts/setupNFS.sh {{db_nfs_expose}} &&
+    /home/admin/{{ itom_base_infra }}/scripts/setupNFS.sh {{smartanalytics_nfs_expose}} &&
+    cd /home/admin/{{ itom_base_infra }}/tools/silent-install/ &&
+    sed -ri 's#(^.*sh ./downloadimages.sh.*)#\1 -T {{SuiteDataImageTag}} -l -y#g' silent_main.sh &&
+    sed -ri 's#(^.*sh ./uploadimages.sh.*)#\1  -d /var/opt/kubernetes/offline/ -s itsma#g' silent_main.sh &&
+    ./silent_main.sh -m /home/admin/meta-data.tar.gz -j /home/admin/transforParamsDTOStr.json -p 1Qaz2wsx -rh shc-harbor-dev.hpeswlab.net/ -ru dev -rp 1Qaz2wsx -o itsma &&
+    echo "source <(kubectl completion bash)" >> /etc/profile
+  when: is_master == "true"
+# tag core platform with suitekit when installed by suitekit
+- copy: dest=/opt/kubernetes/do_not_touch mode=600 content="suitekit\n"
+- name: include vars
+  get_url:
+    url: "https://raw.github.houston.softwaregrp.net/SMA-RnD/suite-tools/master/alias-tool/alias.sh"
+    dest: /etc/profile.d/
+    mode: 0644
+

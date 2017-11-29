@@ -1,0 +1,18 @@
+2017/11/24 14:27:05 An action 'destroy' was attempted on the machine 'controller',
+2017/11/24 14:27:05 but another process is already executing an action on the machine.
+2017/11/24 14:27:05 Vagrant locks each machine for access by only one process at a time.
+2017/11/24 14:27:05 Please wait until the other Vagrant process finishes modifying this
+2017/11/24 14:27:05 machine, then try again.
+2017/11/24 14:27:05 
+2017/11/24 14:27:05 If you believe this message is in error, please check the process
+2017/11/24 14:27:05 listing for any "ruby" or "vagrant" processes and kill them. Then
+2017/11/24 14:27:05 try again.
+2017/11/24 14:27:05 An action 'destroy' was attempted on the machine 'controller',
+2017/11/24 14:27:05 but another process is already executing an action on the machine.
+2017/11/24 14:27:05 Vagrant locks each machine for access by only one process at a time.
+2017/11/24 14:27:05 Please wait until the other Vagrant process finishes modifying this
+2017/11/24 14:27:05 machine, then try again.
+2017/11/24 14:27:05 
+2017/11/24 14:27:05 If you believe this message is in error, please check the process
+2017/11/24 14:27:05 listing for any "ruby" or "vagrant" processes and kill them. Then
+2017/11/24 14:27:05 try again.

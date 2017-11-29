@@ -1,0 +1,33 @@
+---
+# tasks file for reset-mng-portal-pass
+    - uri:
+        url: https://{{ ansible_fqdn|lower }}:5443/webhook/tokens
+        method: POST
+        headers: "{{ token_headers }}"
+        return_content: yes
+        status_code: 200
+        body: "{{ token_body }}"
+        body_format: json
+        timeout: 180
+        validate_certs: no
+      register: token
+    - set_fact: reset_pass_cookie={{token.set_cookie|regex_replace('Path=/; Max-Age=1800; HttpOnly; Secure','')|regex_replace('\,','')}}
+    - set_fact: json_format_output={{token.json | from_json }}
+    - set_fact: reset_pass_csrfToken={{json_format_output.extInfo.csrfToken}}
+    - uri:
+        url: https://{{ ansible_fqdn|lower }}:5443/webhook/organizations/core/dbusers/admin
+        method: POST
+        headers: "{{ reset_pass_headers }}"
+        return_content: yes
+        status_code: 200
+        body: "{{ reset_pass_body}}"
+        body_format: json
+        timeout: 180
+        validate_certs: no
+      register: change_pass_output
+    - debug: msg={{change_pass_output}}
+    - set_fact: change_pass_output_json_format={{change_pass_output.json |from_json}}
+    - debug: msg={{change_pass_output_json_format}}
+    - fail:
+        msg: "change password for admin failed"
+      when: change_pass_output_json_format.isSuccessful != true      

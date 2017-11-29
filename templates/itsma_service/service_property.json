@@ -1,0 +1,41 @@
+{
+  	"service_name": "itom-{{.Name}}",
+   	"expectedstatus": "running",
+	"configmap_yaml": "itom-{{.Name}}-configmap",
+	"service_yaml": "itom-{{.Name}}-xxx-svc itom-{{.Name}}-aaa-svc itom-{{.Name}}-bbb-pod",
+	"ingress_yaml": "itom-{{.Name}}-ingress",
+	"dependencies":	[
+		{
+			"yamlfile": "itom-{{.Name}}-xxx-svc",
+			"dependsOn": [
+				{
+					"kind": "service",
+					"name": "itom-{{.Name}}-aaa-svc",
+					"expectedstatus": "running"
+				},
+				{
+					"kind": "pod",
+					"name": "itom-{{.Name}}-bbb-pod",
+					"expectedstatus": "succeeded"
+				}
+			]
+		}
+	],
+	"k8sstatus": [
+		{
+			"kind": "pod",
+			"name": "itom-{{.Name}}-bbb-pod",
+			"expectedstatus": "succeeded"
+		},
+		{
+			"kind": "service",
+			"name": "itom-{{.Name}}-xxx-svc",
+			"expectedstatus": "running"
+		},
+		{
+			"kind": "service",
+			"name": "itom-{{.Name}}-aaa-svc",
+			"expectedstatus": "running"
+		}
+	]
+}

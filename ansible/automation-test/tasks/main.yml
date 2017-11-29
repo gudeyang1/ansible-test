@@ -1,0 +1,6 @@
+---
+# tasks file for automation
+- name: mkdir /var/vols/itom/itsma/itsma-itsma-global/logs/automation/
+  file: dest={{global_nfs_expose}}/logs/automation state=directory owner=1999 group=1999 recurse=yes
+- name: generate tag.properties
+  copy: dest={{global_nfs_expose}}/logs/automation/tag.properties content="tag={{automation_tag}}\n"

@@ -1,0 +1,35 @@
+    - name: delete namespace {{suite_namespace}}
+      shell: >
+        kubectl delete namespace `kubectl get namespace |awk '{print $1}'|grep itsma` --now 
+      ignore_errors: True
+    - name: wait until namespace is fully deleted
+      shell: >
+        kubectl get namespace |awk '{print $1}'|grep itsma
+      ignore_errors: True
+      register: namespace_exist
+      until: namespace_exist.rc != 0
+      retries: 30
+      delay: 10
+    - name: delete global nfs folder
+      file: state=absent dest={{global_nfs_expose}}
+      ignore_errors: True
+    - name: delete DB nfs folder
+      file: state=absent dest={{db_nfs_expose}}
+      ignore_errors: True
+    - name: delete smartanalytics nfs folder
+      file: state=absent dest={{smartanalytics_nfs_expose}}
+      ignore_errors: True
+    - name: delete pv
+      shell: >
+        kubectl delete pv `kubectl get pv |grep itsma |awk '{print $1}'`
+      ignore_errors: True
+    - name: create global new nfs folder
+      file: dest={{global_nfs_expose}} owner=itsma group=itsma state=directory
+    - name: create db new nfs folder
+      file: dest={{db_nfs_expose}} owner=itsma group=itsma state=directory
+    - name: create smartanalytics new nfs folder
+      file: dest={{smartanalytics_nfs_expose}} owner=itsma group=itsma state=directory
+
+    - name: exportfs -ra
+      shell: exportfs -ra
+

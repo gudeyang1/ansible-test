@@ -1,0 +1,12 @@
+---
+# vars file for suite-backup
+backup_body:
+  backup_services:
+    - name: "itom-cmdb"
+    - name: "itom-sm"
+    - name: "itom-xservices"
+    - name: "itom-xservices-infra"
+    - name: "itom-service-portal"
+    - name: "itom-service-portal-ui"
+    - name: "itom-smartanalytics"
+  backup_namespace: "{{current_namespace}}"

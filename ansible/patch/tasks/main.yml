@@ -1,0 +1,33 @@
+---
+# tasks file for patch
+    - name: file exists
+      stat: path=/var/vols/itom/core/suite-install/itsma/output/controller_yamls/{{item.0}}-deploy-controller.yaml
+      with_together:
+        - "{{service}}"
+      register: file_exists
+    - fail:
+        msg: "service deploy-controller yaml file do not exists...."
+      when: item.stat.exists != true
+      with_items: "{{file_exists.results}}"
+
+    - name: delete service old pod and yaml
+      shell: >
+        kubectl delete -f /var/vols/itom/core/suite-install/itsma/output/controller_yamls/{{item.0}}-deploy-controller.yaml &&
+        kubectl delete -f /var/vols/itom/core/suite-install/itsma/output/{{item.0}}*/yamls &&
+        rm -rf /var/vols/itom/core/suite-install/itsma/output/{{item.0}}*
+      ignore_errors: True
+      with_together:
+        - "{{service}}"
+
+    - name: replace deploycontroller with new tag
+      shell: sed -ri.bck 's#(image{{':'}}.*controller{{':'}}).*$#\1{{item.1}}#g' /var/vols/itom/core/suite-install/itsma/output/controller_yamls/{{item.0}}-deploy-controller.yaml
+      ignore_errors: True
+      with_together:
+        - "{{service}}"
+        - "{{new_tag}}"
+    - name: recreate service with new deploycontroller tag
+      shell: kubectl  create -f /var/vols/itom/core/suite-install/itsma/output/controller_yamls/{{item.0}}-deploy-controller.yaml
+      ignore_errors: True
+      with_together:
+        - "{{service}}"
+

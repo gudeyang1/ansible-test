@@ -1,0 +1,10 @@
+---
+# tasks file for reload_install_body_from_backup
+
+- name: fetch itsma_suite_metadata.json to local
+  fetch: src={{global_nfs_expose}}/backup/{{backup_package_dir}}/itsma_suite_metadata.json dest=/home/vagrant/itsma_suite_metadata.json flat=yes
+- name: include vars of itsma_suite_metadata.json
+  include_vars: file=/home/vagrant/itsma_suite_metadata.json
+- set_fact: mode={{itom_suite_mode}}
+- debug: msg="itom_suite_mode is {{mode}}"
+
